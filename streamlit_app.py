@@ -1,10 +1,13 @@
-# streamlit_app.py 
+# streamlit_app.py
 import streamlit as st
 import pandas as pd
 from data import load_cleaned_data
 from recommendation_logic import recommend_destinations
 from urllib.parse import quote_plus
 import streamlit.components.v1 as components
+from github import Github
+import io
+import tempfile
 
 # --- Page Config ---
 st.set_page_config(page_title="Travel Planning Assistant", layout="wide")
@@ -80,7 +83,7 @@ def interactive_star_rating_html(key, max_stars=5, default=0):
             updateStars(selected_{key});
             window.parent.postMessage({{key:"{key}", value:selected_{key}}}, "*");
         }});
-    }});
+    }} );
     </script>
     """
     components.html(html_code, height=120)
@@ -128,9 +131,8 @@ if section == "Travel Planning Assistant":
                 search_url = f"https://www.google.com/search?q={quote_plus(row['city'])}+{quote_plus(row['country'])}"
                 st.markdown(f"[Search More]({search_url})")
                 st.markdown("</div>", unsafe_allow_html=True)
-
 # -----------------------------
-# Section 2: Add Travel Rating (0 to 5 stars with half-stars)
+# Section 2: Add Travel Rating + View All Ratings
 # -----------------------------
 if section == "Add Travel Rating":
     st.markdown("<div style='text-align:center; font-size:32px; font-weight:bold;'>✏️ Add Travel Rating</div>", unsafe_allow_html=True)
@@ -145,27 +147,22 @@ if section == "Add Travel Rating":
 
     scores = {}
 
-    # --- Interactive Half-Star Function ---
     def star_rating_half(key):
         if key not in st.session_state:
             st.session_state[key] = 0.0
-
-        # Options from 0 to 5 in 0.5 increments
         options = [i*0.5 for i in range(11)]
         index = options.index(st.session_state[key]) if st.session_state[key] in options else 0
-
         rating = st.radio("", options=options, index=index, horizontal=True, key=f"radio_{key}")
         st.session_state[key] = rating
 
-        # Display stars visually
         stars_html = ""
         for i in range(1, 6):
             if rating >= i:
-                stars_html += f'<span style="font-size:40px; color:gold; cursor:pointer;" onclick="document.querySelector(\'input#radio_{key}_option_{int((i-1)*2)}\').click()">&#9733;</span>'
+                stars_html += f'<span style="font-size:40px; color:gold;">&#9733;</span>'
             elif rating >= i-0.5:
-                stars_html += f'<span style="font-size:40px; color:gold; cursor:pointer;" onclick="document.querySelector(\'input#radio_{key}_option_{int((i-1)*2+1)}\').click()">&#9734;</span>'
+                stars_html += f'<span style="font-size:40px; color:gold;">&#9734;</span>'
             else:
-                stars_html += f'<span style="font-size:40px; color:#ccc; cursor:pointer;" onclick="document.querySelector(\'input#radio_{key}_option_{int((i-1)*2)}\').click()">&#9733;</span>'
+                stars_html += f'<span style="font-size:40px; color:#ccc;">&#9733;</span>'
         st.markdown(stars_html, unsafe_allow_html=True)
         return rating
 
@@ -177,25 +174,64 @@ if section == "Add Travel Rating":
         if not city:
             st.error("Please provide City")
         else:
-            df_ratings = st.session_state['ratings_df']
-            existing = df_ratings[df_ratings['city'].str.lower() == city.lower()]
+            try:
+                # --- GitHub secrets ---
+                token = st.secrets["GITHUB_TOKEN"]
+                repo_name = st.secrets["REPO_NAME"]
+                file_path = st.secrets["FILE_PATH"]
 
-            if not existing.empty:
-                st.warning(f"⚠️ The city {city} already exists.")
-            else:
-                new_row = {
-                    "city": city,
-                    "country": country,
-                    "region": region,
-                    "short_description": short_description,
-                    "budget_level": budget_level_input
-                }
-                for t in TRIP_TYPES:
-                    new_row[t] = float(scores[t])  # save as float for half-stars
+                g = Github(token)
+                repo = g.get_repo(repo_name)
 
-                df_ratings = pd.concat([df_ratings, pd.DataFrame([new_row])], ignore_index=True)
-                st.session_state['ratings_df'] = df_ratings
-                cols_order = ["city","country","region","short_description","budget_level"] + TRIP_TYPES
-                df_ratings[cols_order].to_excel("cleaned_output.xlsx", index=False)
+                # Load Excel from GitHub
+                contents = repo.get_contents(file_path)
+                df_ratings = pd.read_excel(io.BytesIO(contents.decoded_content))
 
-                st.success(f"✅ Added new rating for {city}")
+                # Check if city exists
+                existing = df_ratings[df_ratings['city'].str.lower() == city.lower()]
+                if not existing.empty:
+                    st.warning(f"⚠️ The city {city} already exists.")
+                else:
+                    new_row = {
+                        "city": city,
+                        "country": country,
+                        "region": region,
+                        "short_description": short_description,
+                        "budget_level": budget_level_input
+                    }
+                    for t in TRIP_TYPES:
+                        new_row[t] = float(scores[t])
+
+                    df_ratings = pd.concat([df_ratings, pd.DataFrame([new_row])], ignore_index=True)
+
+                    # Save to Excel in memory and update GitHub
+                    with tempfile.NamedTemporaryFile() as tmp:
+                        df_ratings.to_excel(tmp.name, index=False, engine='openpyxl')
+                        with open(tmp.name, "rb") as f:
+                            repo.update_file(file_path, f"Add rating for {city}", f.read(), contents.sha)
+
+                    st.session_state['ratings_df'] = df_ratings
+                    st.success(f"✅ Added new rating for {city}")
+
+            except Exception as e:
+                st.error(f"Failed to add rating: {e}")
+
+    # --- View All Ratings ---
+    st.markdown("---")
+    st.markdown("<h3>📊 All Travel Ratings</h3>", unsafe_allow_html=True)
+
+    try:
+        token = st.secrets["GITHUB_TOKEN"]
+        repo_name = st.secrets["REPO_NAME"]
+        file_path = st.secrets["FILE_PATH"]
+
+        g = Github(token)
+        repo = g.get_repo(repo_name)
+
+        contents = repo.get_contents(file_path)
+        df_ratings = pd.read_excel(io.BytesIO(contents.decoded_content))
+
+        # Display dataframe in Streamlit
+        st.dataframe(df_ratings)
+    except Exception as e:
+        st.error(f"Failed to load ratings: {e}")
