@@ -34,7 +34,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Sidebar Navigation ---
-st.sidebar.title("Menu")
+st.sidebar.title("Pages:")
 section = st.sidebar.radio("Choose Section:", ["Travel Planning Assistant", "Add Travel Rating"])
 
 # --- Load Data ---
@@ -234,6 +234,7 @@ if section == "Add Travel Rating":
         st.dataframe(df_ratings)
     except Exception as e:
         st.error(f"Failed to load ratings: {e}")
+
 
 
 
