@@ -88,23 +88,22 @@ def interactive_star_rating_html(key, max_stars=5, default=0):
     """
     components.html(html_code, height=120)
     return st.session_state.get(key, default)
-
 # -----------------------------
-# Section 1: Travel Planning Assistant
+# Section 1: Travel Planning Assistant (Improved UI/UX)
 # -----------------------------
 if section == "Travel Planning Assistant":
-    st.markdown("<div style='text-align:center; font-size:32px; font-weight:700;'>🌍 Travel Planning Assistant</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; font-size:36px; font-weight:800; margin-bottom:20px;'>🌍 Travel Planning Assistant</div>", unsafe_allow_html=True)
 
-    # Budget selection
+    # Budget selection with info badge
     budget_levels = {"Budget": (50, 150), "Mid-range": (150, 350), "Luxury": (350, 1000)}
     budget_options = [f"{lvl} ({low}-{high}+)" if high >= 1000 else f"{lvl} ({low}-{high})" for lvl,(low,high) in budget_levels.items()]
-    budget_choice_str = st.selectbox("Select your Budget Level:", budget_options)
+    budget_choice_str = st.selectbox("💰 Select your Budget Level:", budget_options)
     budget_level = budget_choice_str.split(" (")[0]
 
-    # Trip type selection
-    selected_types = st.multiselect("Select your Trip Types:", TRIP_TYPES)
+    # Trip type selection with badges
+    selected_types = st.multiselect("✈️ Select your Trip Types:", TRIP_TYPES)
 
-    if st.button("Get Recommendations"):
+    if st.button("Get Recommendations", type="primary"):
         if not selected_types:
             st.warning("⚠️ Please select at least one trip type.")
         else:
@@ -119,18 +118,20 @@ if section == "Travel Planning Assistant":
             top5_score = recs.iloc[4]['score']
             recs = recs[recs['score'] >= top5_score].reset_index(drop=True)
 
-        st.markdown(f"<div style='font-size:24px; font-weight:600;'>🏖️ Top {len(recs)} Destination Recommendations for You:</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size:26px; font-weight:700; margin-top:20px;'>🏖️ Top {len(recs)} Destination Recommendations for You:</div>", unsafe_allow_html=True)
+
         for idx, row in recs.iterrows():
-            st.markdown("---")
-            with st.container():
-                st.markdown("<div class='recommendation-card'>", unsafe_allow_html=True)
-                st.markdown(f"<div style='font-size:20px; font-weight:600;'>{idx+1}. {row['city']}, {row['country']}</div>", unsafe_allow_html=True)
-                st.markdown(f"**Region:** {row['region']}")
-                st.markdown(f"**Description:** {row['short_description']}")
-                display_stars_html(row['score'])
-                search_url = f"https://www.google.com/search?q={quote_plus(row['city'])}+{quote_plus(row['country'])}"
-                st.markdown(f"[Search More]({search_url})")
-                st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown(f"""
+                <div style='border:1px solid #ddd; border-radius:12px; padding:20px; margin-bottom:15px; box-shadow:2px 2px 12px rgba(0,0,0,0.05); background-color:#fafafa'>
+                    <div style='font-size:22px; font-weight:700; color:#2c3e50;'>{idx+1}. {row['city']}, {row['country']}</div>
+                    <div style='margin:5px 0; font-size:16px; color:#34495e;'><b>Region:</b> {row['region']}</div>
+                    <div style='margin:5px 0; font-size:16px; color:#34495e;'><b>Description:</b> {row['short_description']}</div>
+                    <div style='margin:10px 0;'>{display_stars_html(row['score'])}</div>
+                    <a href='https://www.google.com/search?q={quote_plus(row['city'])}+{quote_plus(row['country'])}' target='_blank' style='text-decoration:none; color:#fff; background-color:#3498db; padding:8px 16px; border-radius:8px;'>🔍 Search More</a>
+                </div>
+            """, unsafe_allow_html=True)
+
 # -----------------------------
 # Section 2: Add Travel Rating + View All Ratings
 # -----------------------------
@@ -218,7 +219,7 @@ if section == "Add Travel Rating":
 
     # --- View All Ratings ---
     st.markdown("---")
-    st.markdown("<h3>📊 All Travel Ratings</h3>", unsafe_allow_html=True)
+    st.markdown("<h3>🏖️ All Travel Ratings</h3>", unsafe_allow_html=True)
 
     try:
         token = st.secrets["GITHUB_TOKEN"]
@@ -235,3 +236,4 @@ if section == "Add Travel Rating":
         st.dataframe(df_ratings)
     except Exception as e:
         st.error(f"Failed to load ratings: {e}")
+
