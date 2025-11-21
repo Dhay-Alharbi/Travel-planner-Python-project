@@ -46,9 +46,8 @@ TRIP_TYPES = ["culture", "adventure", "nature", "beaches",
               "cuisine", "wellness", "urban", "seclusion"]
 
 # Ensure all trip type columns exist
-for col in TRIP_TYPES:
-    if col not in st.session_state['ratings_df'].columns:
-        st.session_state['ratings_df'][col] = 0
+list(map(lambda col: st.session_state['ratings_df'].setdefault(col, 0), TRIP_TYPES))
+
 
 # --- Display static stars ---
 def display_stars_html(rating, max_stars=5):
@@ -234,6 +233,7 @@ if section == "Add Travel Rating":
         st.dataframe(df_ratings)
     except Exception as e:
         st.error(f"Failed to load ratings: {e}")
+
 
 
 
