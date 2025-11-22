@@ -63,21 +63,21 @@ def display_stars_html(rating, max_stars=5):
     stars_html = full_star * full_count + half_star * half_count + empty_star * empty_count
     st.markdown(stars_html, unsafe_allow_html=True)
 
-# Budget selection and options
-budget_levels = {
-    "Budget": (50, 150),
-    "Mid-range": (150, 350),
-    "Luxury": (350, 1000)
-}
-
-budget_options = [
-    f"{lvl} ({low}-{high}+)" if high >= 1000 else f"{lvl} ({low}-{high})"
-    for lvl, (low, high) in budget_levels.items()
-]
 
 # SECTION 1: Travel Planning Assistant
 if section == "Travel Planning Assistant":
     st.markdown("<div style='text-align:center; font-size:32px; font-weight:700;'>🌍 Travel Planning Assistant</div>", unsafe_allow_html=True)
+    # Budget selection and options
+    budget_levels = {
+        "Budget": (50, 150),
+        "Mid-range": (150, 350),
+        "Luxury": (350, 1000)
+    }
+    
+    budget_options = [
+        f"{lvl} ({low}-{high}+)" if high >= 1000 else f"{lvl} ({low}-{high})"
+        for lvl, (low, high) in budget_levels.items()
+    ]
 
     budget_choice_str = st.selectbox("Select your Budget Level:", budget_options)
     budget_level = budget_choice_str.split(" (")[0]  # extract clean level name
@@ -120,7 +120,7 @@ if section == "Add Travel Rating":
     country = st.text_input("Country").strip()
     region = st.text_input("Region").strip()
     short_description = st.text_area("Short Description").strip()
-    budget_level_input = st.selectbox("Budget Level", budget_options)
+    budget_level_input = st.selectbox("Budget Level", ["Budget", "Mid-range", "Luxury"])
 
     st.markdown("<h3>⭐ Rate each Trip Type</h3>", unsafe_allow_html=True)
     scores = {}
@@ -226,5 +226,6 @@ if section == "Explore All Destinations":
 
     except Exception as e:
         st.error(f"Failed to load ratings: {e}")
+
 
 
