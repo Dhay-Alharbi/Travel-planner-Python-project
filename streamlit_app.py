@@ -1,5 +1,6 @@
 # streamlit_app.py
 
+#Library
 import streamlit as st
 import pandas as pd
 from data import load_cleaned_data
@@ -9,6 +10,7 @@ import streamlit.components.v1 as components
 from github import Github
 import io
 import tempfile
+
 
 # Page Configuration
 st.set_page_config(page_title="Travel Planning Assistant", layout="wide")
@@ -36,71 +38,35 @@ st.markdown("""
 
 # Sidebar Navigation
 st.sidebar.title("Pages:")
-section = st.sidebar.radio("Choose Section:", ["Travel Planning Assistant", "Add Travel Rating", "All Travel Ratings"])
+section = st.sidebar.radio("Choose Section:", ["Travel Planning Assistant", "Add Travel Rating", "Explore All Destinations"])
 
 # Load and prepare dataset
 df = load_cleaned_data()
 
-# Create session ratings_df if not exists
-if 'ratings_df' not in st.session_state:
-    st.session_state['ratings_df'] = df.copy()
 
 # Define all trip types
 TRIP_TYPES = [
-    "culture", "adventure", "nature", "beaches",
-    "cuisine", "wellness", "urban", "seclusion"
+    "culture", "adventure", "nature", "beaches","cuisine", "wellness", "urban", "seclusion"
 ]
 
-# Ensure all trip type columns exist in session df
-list(map(
-    lambda col: st.session_state['ratings_df'].__setitem__(
-        col,
-        st.session_state['ratings_df'][col] if col in st.session_state['ratings_df'].columns else 0
-    ),
-    TRIP_TYPES
-))
 
 # Function: Display static stars
 def display_stars_html(rating, max_stars=5):
     full_star = '<i class="fas fa-star star"></i>'
+    half_star = '<i class="fas fa-star-half-alt star"></i>'
     empty_star = '<i class="far fa-star star"></i>'
-    rating = int(rating)
-    stars_html = full_star * rating + empty_star * (max_stars - rating)
+    # Calculate full, half, and empty stars
+    full_count = int(rating)                
+    half_count = 1 if (rating - full_count) >= 0.5 else 0
+    empty_count = max_stars - full_count - half_count      # remaining empty stars
+
+    stars_html = full_star * full_count + half_star * half_count + empty_star * empty_count
     st.markdown(stars_html, unsafe_allow_html=True)
 
-# Function: Interactive big star rating (for JS stars)
-def interactive_star_rating_html(key, max_stars=5, default=0):
-    html_code = f"""
-    <div id="{key}">
-        {''.join([f'<span class="star" data-value="{i}">&#9733;</span>' for i in range(1, max_stars+1)])}
-    </div>
-    <script>
-        const container_{key} = document.getElementById("{key}");
-        const stars_{key} = container_{key}.querySelectorAll(".star");
-        let selected_{key} = {default};
 
-        function updateStars(val) {{
-            stars_{key}.forEach(s => {{
-                s.style.color = s.dataset.value <= val ? "gold" : "#ccc";
-            }});
-        }}
-        updateStars(selected_{key});
-
-        stars_{key}.forEach(star => {{
-            star.addEventListener("click", function() {{
-                selected_{key} = parseInt(this.dataset.value);
-                updateStars(selected_{key});
-                window.parent.postMessage({{key:"{key}", value:selected_{key}}}, "*");
-            }});
-        }});
-    </script>
-    """
-    components.html(html_code, height=120)
-    return st.session_state.get(key, default)
 
 # SECTION 1: Travel Planning Assistant
 if section == "Travel Planning Assistant":
-
     st.markdown("<div style='text-align:center; font-size:32px; font-weight:700;'>🌍 Travel Planning Assistant</div>", unsafe_allow_html=True)
 
     # Budget selection
@@ -132,10 +98,6 @@ if section == "Travel Planning Assistant":
     # Display recommendations if available
     if 'recommendations' in st.session_state:
         recs = st.session_state['recommendations']
-        if len(recs) > 5:
-            top5_score = recs.iloc[4]['score']
-            recs = recs[recs['score'] >= top5_score].reset_index(drop=True)
-
         st.markdown(f"<div style='font-size:24px; font-weight:600;'>🏖️ Top {len(recs)} Destination Recommendations for You:</div>", unsafe_allow_html=True)
 
         for idx, row in recs.iterrows():
@@ -147,6 +109,7 @@ if section == "Travel Planning Assistant":
             search_url = f"https://www.google.com/search?q={quote_plus(row['city'])}+{quote_plus(row['country'])}"
             st.markdown(f"[Search More]({search_url})")
 
+
 # SECTION 2: Add Travel Rating
 if section == "Add Travel Rating":
 
@@ -156,7 +119,7 @@ if section == "Add Travel Rating":
     country = st.text_input("Country").strip()
     region = st.text_input("Region").strip()
     short_description = st.text_area("Short Description").strip()
-    budget_level_input = st.selectbox("Budget Level", ["Budget", "Mid-range", "Luxury"])
+    budget_level_input = st.selectbox("Budget Level", budget_options)
 
     st.markdown("<h3>⭐ Rate each Trip Type</h3>", unsafe_allow_html=True)
 
@@ -230,21 +193,23 @@ if section == "Add Travel Rating":
             except Exception as e:
                 st.error(f"Failed to add rating: {e}")
 
-# SECTION 3: All Travel Ratings
-if section == "All Travel Ratings":
+# SECTION 3: Explore All Destinations
+if section == "Explore All Destinations":
 
-    st.markdown("<div style='text-align:center; font-size:32px; font-weight:bold;'>🏖️ All Travel Ratings</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; font-size:32px; font-weight:bold;'>🌍 Explore All Destinations</div>", unsafe_allow_html=True)
 
     try:
         token = st.secrets["GITHUB_TOKEN"]
         repo_name = st.secrets["REPO_NAME"]
         file_path = st.secrets["FILE_PATH"]
-
         g = Github(token)
         repo = g.get_repo(repo_name)
         contents = repo.get_contents(file_path)
-        df_ratings = pd.read_excel(io.BytesIO(contents.decoded_content))
 
+        # Read all data from file 
+        df_ratings = pd.read_excel(io.BytesIO(contents.decoded_content))
+        
+        # Display the DataFrame
         st.dataframe(df_ratings)
 
     except Exception as e:
