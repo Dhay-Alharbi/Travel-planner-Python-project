@@ -1,0 +1,36 @@
+BEGIN TravelRecommendation
+
+    INPUT user_budget_level
+    INPUT user_selected_trip_types
+
+    SET filtered_data TO all rows in dataset WHERE
+        LOWERCASE(row.budget_level) EQUALS LOWERCASE(user_budget_level)
+
+    FOR EACH row IN filtered_data DO
+        SET total_score TO SUM of row[t] FOR EACH t IN user_selected_trip_types
+        SET row.score TO total_score / COUNT(user_selected_trip_types)
+    END FOR
+
+    SET sorted_data TO filtered_data SORTED BY score DESCENDING
+
+    FOR EACH row IN sorted_data DO
+        ASSIGN row.rank BASED ON row.score (higher score = better rank)
+    END FOR
+
+    SET top_ranked TO all rows IN sorted_data WHERE row.rank <= 5
+
+    IF COUNT(top_ranked) > 0 THEN
+        SET fifth_score TO score of row with rank 5 in sorted_data
+        SET final_recommendations TO all rows IN sorted_data WHERE
+            row.score >= fifth_score
+    ELSE
+        SET final_recommendations TO EMPTY
+    END IF
+
+    DISPLAY "Recommended Destinations:"
+    FOR EACH row IN final_recommendations DO
+        DISPLAY row.city, row.country, row.region,
+                row.short_description, row.score
+    END FOR
+
+END TravelRecommendation
