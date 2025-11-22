@@ -1,5 +1,4 @@
-# streamlit_app.py
-
+# streamlit_app_ui.py
 import streamlit as st
 import pandas as pd
 from data import load_cleaned_data
@@ -10,65 +9,71 @@ from github import Github
 import io
 import tempfile
 
-# Page Configuration
-st.set_page_config(page_title="Travel Planning Assistant", layout="wide")
+# --- Page Config ---
+st.set_page_config(page_title="🌍 Travel Planning Assistant", layout="wide")
 
-# Load FontAwesome + Custom CSS (for stars)
+# --- Inject FontAwesome + Custom CSS ---
 st.markdown("""
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 <style>
-    .star {
-        color: gold;
-        margin-right: 8px;
-        font-size:28px;
-        cursor:pointer;
-        transition: color 0.2s;
-    }
+    /* Star styles */
+    .star { color: gold; margin-right: 8px; font-size:30px; cursor:pointer; transition: 0.2s; }
+    .star:hover { transform: scale(1.2); }
+    
+    /* Card styles */
     .recommendation-card {
-        border-radius: 8px;
-        padding: 15px;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 15px;
+        background-color: #fdfdfd;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+        transition: transform 0.2s;
+    }
+    .recommendation-card:hover {
+        transform: scale(1.02);
+    }
+
+    /* Section titles */
+    .section-title {
+        font-size: 32px;
+        font-weight: 700;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    .sub-title {
+        font-size: 24px;
+        font-weight: 600;
         margin-bottom: 10px;
-        background-color: #f9f9f9;
-        box-shadow: 1px 1px 4px rgba(0,0,0,0.1);
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar Navigation
-st.sidebar.title("Pages:")
+# --- Sidebar Navigation ---
+st.sidebar.title("📌 Navigation")
 section = st.sidebar.radio("Choose Section:", ["Travel Planning Assistant", "Add Travel Rating", "All Travel Ratings"])
 
-# Load and prepare dataset
+# --- Load dataset ---
 df = load_cleaned_data()
 
-# Create session ratings_df if not exists
 if 'ratings_df' not in st.session_state:
     st.session_state['ratings_df'] = df.copy()
 
-# Define all trip types
-TRIP_TYPES = [
-    "culture", "adventure", "nature", "beaches",
-    "cuisine", "wellness", "urban", "seclusion"
-]
+TRIP_TYPES = ["culture", "adventure", "nature", "beaches", "cuisine", "wellness", "urban", "seclusion"]
 
-# Ensure all trip type columns exist in session df
-list(map(
-    lambda col: st.session_state['ratings_df'].__setitem__(
-        col,
-        st.session_state['ratings_df'][col] if col in st.session_state['ratings_df'].columns else 0
-    ),
-    TRIP_TYPES
-))
+# Ensure trip type columns exist
+for col in TRIP_TYPES:
+    if col not in st.session_state['ratings_df'].columns:
+        st.session_state['ratings_df'][col] = 0
 
-# Function: Display static stars
+# -----------------------
+# Functions for Stars
+# -----------------------
 def display_stars_html(rating, max_stars=5):
     full_star = '<i class="fas fa-star star"></i>'
     empty_star = '<i class="far fa-star star"></i>'
     rating = int(rating)
-    stars_html = full_star * rating + empty_star * (max_stars - rating)
-    st.markdown(stars_html, unsafe_allow_html=True)
+    st.markdown(full_star*rating + empty_star*(max_stars-rating), unsafe_allow_html=True)
 
-# Function: Interactive big star rating (for JS stars)
 def interactive_star_rating_html(key, max_stars=5, default=0):
     html_code = f"""
     <div id="{key}">
@@ -78,16 +83,12 @@ def interactive_star_rating_html(key, max_stars=5, default=0):
         const container_{key} = document.getElementById("{key}");
         const stars_{key} = container_{key}.querySelectorAll(".star");
         let selected_{key} = {default};
-
-        function updateStars(val) {{
-            stars_{key}.forEach(s => {{
-                s.style.color = s.dataset.value <= val ? "gold" : "#ccc";
-            }});
+        function updateStars(val){{
+            stars_{key}.forEach(s => s.style.color = s.dataset.value <= val ? "gold" : "#ccc");
         }}
         updateStars(selected_{key});
-
         stars_{key}.forEach(star => {{
-            star.addEventListener("click", function() {{
+            star.addEventListener("click", function(){{
                 selected_{key} = parseInt(this.dataset.value);
                 updateStars(selected_{key});
                 window.parent.postMessage({{key:"{key}", value:selected_{key}}}, "*");
@@ -95,146 +96,107 @@ def interactive_star_rating_html(key, max_stars=5, default=0):
         }});
     </script>
     """
-    components.html(html_code, height=120)
+    components.html(html_code, height=100)
     return st.session_state.get(key, default)
 
+# ========================
 # SECTION 1: Travel Planning Assistant
+# ========================
 if section == "Travel Planning Assistant":
+    st.markdown("<div class='section-title'>🌍 Travel Planning Assistant</div>", unsafe_allow_html=True)
 
-    st.markdown("<div style='text-align:center; font-size:32px; font-weight:700;'>🌍 Travel Planning Assistant</div>", unsafe_allow_html=True)
+    col1, col2 = st.columns([1, 2])
 
-    # Budget selection
-    budget_levels = {
-        "Budget": (50, 150),
-        "Mid-range": (150, 350),
-        "Luxury": (350, 1000)
-    }
+    with col1:
+        budget_levels = {"Budget": (50,150), "Mid-range": (150,350), "Luxury": (350,1000)}
+        budget_options = [f"{lvl} ({low}-{high}+)" if high>=1000 else f"{lvl} ({low}-{high})" for lvl,(low,high) in budget_levels.items()]
+        budget_choice_str = st.selectbox("Select your Budget Level:", budget_options)
+        budget_level = budget_choice_str.split(" (")[0]
 
-    budget_options = [
-        f"{lvl} ({low}-{high}+)" if high >= 1000 else f"{lvl} ({low}-{high})"
-        for lvl, (low, high) in budget_levels.items()
-    ]
+        selected_types = st.multiselect("Select your Trip Types:", TRIP_TYPES)
 
-    budget_choice_str = st.selectbox("Select your Budget Level:", budget_options)
-    budget_level = budget_choice_str.split(" (")[0]  # extract clean level name
-
-    # Trip type selection
-    selected_types = st.multiselect("Select your Trip Types:", TRIP_TYPES)
-
-    # Generate Recommendations
-    if st.button("Get Recommendations"):
-        if not selected_types:
-            st.warning("⚠️ Please select at least one trip type.")
-        else:
-            recommendations = recommend_destinations(df, budget_level, selected_types)
-            st.session_state['recommendations'] = recommendations.sort_values(by='score', ascending=False).reset_index(drop=True)
-
-    # Display recommendations if available
-    if 'recommendations' in st.session_state:
-        recs = st.session_state['recommendations']
-        if len(recs) > 5:
-            top5_score = recs.iloc[4]['score']
-            recs = recs[recs['score'] >= top5_score].reset_index(drop=True)
-
-        st.markdown(f"<div style='font-size:24px; font-weight:600;'>🏖️ Top {len(recs)} Destination Recommendations for You:</div>", unsafe_allow_html=True)
-
-        for idx, row in recs.iterrows():
-            st.markdown("---")
-            st.markdown(f"**{idx+1}. {row['city']}, {row['country']}**")
-            st.markdown(f"**Region:** {row['region']}")
-            st.markdown(f"**Description:** {row['short_description']}")
-            display_stars_html(row['score'])
-            search_url = f"https://www.google.com/search?q={quote_plus(row['city'])}+{quote_plus(row['country'])}"
-            st.markdown(f"[Search More]({search_url})")
-
-# SECTION 2: Add Travel Rating
-if section == "Add Travel Rating":
-
-    st.markdown("<div style='text-align:center; font-size:32px; font-weight:bold;'>✏️ Add Travel Rating</div>", unsafe_allow_html=True)
-
-    city = st.text_input("City").strip()
-    country = st.text_input("Country").strip()
-    region = st.text_input("Region").strip()
-    short_description = st.text_area("Short Description").strip()
-    budget_level_input = st.selectbox("Budget Level", ["Budget", "Mid-range", "Luxury"])
-
-    st.markdown("<h3>⭐ Rate each Trip Type</h3>", unsafe_allow_html=True)
-
-    scores = {}
-    def star_rating_half(key):
-        if key not in st.session_state:
-            st.session_state[key] = 0.0
-        options = [i * 0.5 for i in range(11)]
-        index = options.index(st.session_state[key]) if st.session_state[key] in options else 0
-        rating = st.radio("", options=options, index=index, horizontal=True, key=f"radio_{key}")
-        st.session_state[key] = rating
-
-        stars_html = ""
-        for i in range(1, 6):
-            if rating >= i:
-                stars_html += '<span style="font-size:40px; color:gold;">&#9733;</span>'
-            elif rating >= i - 0.5:
-                stars_html += '<span style="font-size:40px; color:gold;">&#9734;</span>'
+        if st.button("Get Recommendations"):
+            if not selected_types:
+                st.warning("⚠️ Please select at least one trip type.")
             else:
-                stars_html += '<span style="font-size:40px; color:#ccc;">&#9733;</span>'
-        st.markdown(stars_html, unsafe_allow_html=True)
-        return rating
+                recommendations = recommend_destinations(df, budget_level, selected_types)
+                st.session_state['recommendations'] = recommendations.sort_values(by='score', ascending=False).reset_index(drop=True)
 
-    for t in TRIP_TYPES:
-        st.markdown(f"**{t.capitalize()}**")
-        scores[t] = star_rating_half(f"star_{t}")
+    with col2:
+        if 'recommendations' in st.session_state:
+            recs = st.session_state['recommendations']
+            if len(recs) > 5:
+                top5_score = recs.iloc[4]['score']
+                recs = recs[recs['score'] >= top5_score].reset_index(drop=True)
 
-    is_valid = lambda x: bool(x and x.strip())
+            st.markdown(f"<div class='sub-title'>🏖️ Top {len(recs)} Destination Recommendations:</div>", unsafe_allow_html=True)
+            for idx,row in recs.iterrows():
+                st.markdown("<div class='recommendation-card'>", unsafe_allow_html=True)
+                st.markdown(f"**{idx+1}. {row['city']}, {row['country']}**")
+                st.markdown(f"**Region:** {row['region']}")
+                st.markdown(f"**Description:** {row['short_description']}")
+                display_stars_html(row['score'])
+                search_url = f"https://www.google.com/search?q={quote_plus(row['city'])}+{quote_plus(row['country'])}"
+                st.markdown(f"[🔍 Search More]({search_url})")
+                st.markdown("</div>", unsafe_allow_html=True)
 
-    if st.button("Add Rating"):
-        if not is_valid(city):
-            st.error("❌ City cannot be empty")
-        elif not is_valid(country):
-            st.error("❌ Country cannot be empty")
-        elif not is_valid(region):
-            st.error("❌ Region cannot be empty")
-        else:
-            try:
-                token = st.secrets["GITHUB_TOKEN"]
-                repo_name = st.secrets["REPO_NAME"]
-                file_path = st.secrets["FILE_PATH"]
+# ========================
+# SECTION 2: Add Travel Rating
+# ========================
+if section == "Add Travel Rating":
+    st.markdown("<div class='section-title'>✏️ Add Travel Rating</div>", unsafe_allow_html=True)
+    with st.form("add_rating_form"):
+        city = st.text_input("City").strip()
+        country = st.text_input("Country").strip()
+        region = st.text_input("Region").strip()
+        short_description = st.text_area("Short Description").strip()
+        budget_level_input = st.selectbox("Budget Level", ["Budget", "Mid-range", "Luxury"])
+        st.markdown("<h3>⭐ Rate Each Trip Type</h3>", unsafe_allow_html=True)
 
-                g = Github(token)
-                repo = g.get_repo(repo_name)
-                contents = repo.get_contents(file_path)
-                df_ratings = pd.read_excel(io.BytesIO(contents.decoded_content))
+        scores = {}
+        for t in TRIP_TYPES:
+            st.markdown(f"**{t.capitalize()}**")
+            scores[t] = interactive_star_rating_html(f"star_{t}")
 
-                existing = df_ratings[df_ratings['city'].str.lower() == city.lower()]
-                if not existing.empty:
-                    st.warning(f"⚠️ The city {city} already exists.")
-                else:
-                    new_row = {
-                        "city": city,
-                        "country": country,
-                        "region": region,
-                        "short_description": short_description,
-                        "budget_level": budget_level_input
-                    }
-                    for t in TRIP_TYPES:
-                        new_row[t] = float(scores[t])
+        submitted = st.form_submit_button("Add Rating")
+        if submitted:
+            if not city or not country or not region:
+                st.error("❌ City, Country, and Region cannot be empty")
+            else:
+                try:
+                    token = st.secrets["GITHUB_TOKEN"]
+                    repo_name = st.secrets["REPO_NAME"]
+                    file_path = st.secrets["FILE_PATH"]
 
-                    df_ratings = pd.concat([df_ratings, pd.DataFrame([new_row])], ignore_index=True)
+                    g = Github(token)
+                    repo = g.get_repo(repo_name)
+                    contents = repo.get_contents(file_path)
+                    df_ratings = pd.read_excel(io.BytesIO(contents.decoded_content))
 
-                    with tempfile.NamedTemporaryFile() as tmp:
-                        df_ratings.to_excel(tmp.name, index=False, engine='openpyxl')
-                        with open(tmp.name, "rb") as f:
-                            repo.update_file(file_path, f"Add rating for {city}", f.read(), contents.sha)
+                    existing = df_ratings[df_ratings['city'].str.lower() == city.lower()]
+                    if not existing.empty:
+                        st.warning(f"⚠️ The city {city} already exists.")
+                    else:
+                        new_row = {"city": city, "country": country, "region": region,
+                                   "short_description": short_description, "budget_level": budget_level_input}
+                        for t in TRIP_TYPES: new_row[t] = float(scores[t])
+                        df_ratings = pd.concat([df_ratings, pd.DataFrame([new_row])], ignore_index=True)
 
-                    st.session_state['ratings_df'] = df_ratings
-                    st.success(f"✅ Added new rating for {city}")
-            except Exception as e:
-                st.error(f"Failed to add rating: {e}")
+                        with tempfile.NamedTemporaryFile() as tmp:
+                            df_ratings.to_excel(tmp.name, index=False, engine='openpyxl')
+                            with open(tmp.name, "rb") as f:
+                                repo.update_file(file_path, f"Add rating for {city}", f.read(), contents.sha)
 
+                        st.session_state['ratings_df'] = df_ratings
+                        st.success(f"✅ Added new rating for {city}")
+                except Exception as e:
+                    st.error(f"Failed to add rating: {e}")
+
+# ========================
 # SECTION 3: All Travel Ratings
+# ========================
 if section == "All Travel Ratings":
-
-    st.markdown("<div style='text-align:center; font-size:32px; font-weight:bold;'>🏖️ All Travel Ratings</div>", unsafe_allow_html=True)
-
+    st.markdown("<div class='section-title'>🏖️ All Travel Ratings</div>", unsafe_allow_html=True)
     try:
         token = st.secrets["GITHUB_TOKEN"]
         repo_name = st.secrets["REPO_NAME"]
@@ -244,8 +206,6 @@ if section == "All Travel Ratings":
         repo = g.get_repo(repo_name)
         contents = repo.get_contents(file_path)
         df_ratings = pd.read_excel(io.BytesIO(contents.decoded_content))
-
-        st.dataframe(df_ratings)
-
+        st.dataframe(df_ratings, use_container_width=True)
     except Exception as e:
         st.error(f"Failed to load ratings: {e}")
