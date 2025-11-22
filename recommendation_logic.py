@@ -2,7 +2,7 @@
 
 def recommend_destinations(df, budget_level, trip_types):
     # Filter by budget
-    df_filtered = df[df['budget_level'].lower() == budget_level.lower()]
+    df_filtered = df[df['budget_level'].str.lower() == budget_level.lower()]
 
     # Computes average score per selected trip type
     df_filtered['score'] = df_filtered[trip_types].sum(axis=1) / len(trip_types)
@@ -17,3 +17,4 @@ def recommend_destinations(df, budget_level, trip_types):
     df_top = df_sorted[df_sorted['rank'] <= 5]
 
     return df_top[['city', 'country', 'region', 'short_description', 'score']]
+
