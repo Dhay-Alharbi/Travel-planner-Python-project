@@ -79,14 +79,13 @@ def interactive_star_rating_html(key, max_stars=5, default=0):
         const stars_{key} = container_{key}.querySelectorAll(".star");
         let selected_{key} = {default};
 
-        function updateStars(val){
+        function updateStars(val) {{
             stars_{key}.forEach(s => {{
                 s.style.color = s.dataset.value <= val ? "gold" : "#ccc";
             }});
-        }
+        }}
         updateStars(selected_{key});
 
-        // Listen for clicks
         stars_{key}.forEach(star => {{
             star.addEventListener("click", function() {{
                 selected_{key} = parseInt(this.dataset.value);
@@ -311,3 +310,4 @@ if section == "Add Travel Rating":
 
     except Exception as e:
         st.error(f"Failed to load ratings: {e}")
+
