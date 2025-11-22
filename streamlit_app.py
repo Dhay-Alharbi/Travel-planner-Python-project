@@ -36,7 +36,7 @@ st.markdown("""
 
 # Sidebar Navigation
 st.sidebar.title("Pages:")
-section = st.sidebar.radio("Choose Section:", ["Travel Planning Assistant", "Add Travel Rating"])
+section = st.sidebar.radio("Choose Section:", ["Travel Planning Assistant", "Add Travel Rating", "All Travel Ratings"])
 
 # Load and prepare dataset
 df = load_cleaned_data()
@@ -101,11 +101,7 @@ def interactive_star_rating_html(key, max_stars=5, default=0):
 # SECTION 1: Travel Planning Assistant
 if section == "Travel Planning Assistant":
 
-    # Title
-    st.markdown(
-        "<div style='text-align:center; font-size:32px; font-weight:700;'>🌍 Travel Planning Assistant</div>",
-        unsafe_allow_html=True
-    )
+    st.markdown("<div style='text-align:center; font-size:32px; font-weight:700;'>🌍 Travel Planning Assistant</div>", unsafe_allow_html=True)
 
     # Budget selection
     budget_levels = {
@@ -127,84 +123,52 @@ if section == "Travel Planning Assistant":
 
     # Generate Recommendations
     if st.button("Get Recommendations"):
-
         if not selected_types:
             st.warning("⚠️ Please select at least one trip type.")
-
         else:
             recommendations = recommend_destinations(df, budget_level, selected_types)
-            st.session_state['recommendations'] = recommendations.sort_values(
-                by='score',
-                ascending=False
-            ).reset_index(drop=True)
+            st.session_state['recommendations'] = recommendations.sort_values(by='score', ascending=False).reset_index(drop=True)
 
     # Display recommendations if available
     if 'recommendations' in st.session_state:
-
         recs = st.session_state['recommendations']
-
-        # Show only top 5, but include ties
         if len(recs) > 5:
             top5_score = recs.iloc[4]['score']
             recs = recs[recs['score'] >= top5_score].reset_index(drop=True)
 
-        st.markdown(
-            f"<div style='font-size:24px; font-weight:600;'>🏖️ Top {len(recs)} Destination Recommendations for You:</div>",
-            unsafe_allow_html=True
-        )
+        st.markdown(f"<div style='font-size:24px; font-weight:600;'>🏖️ Top {len(recs)} Destination Recommendations for You:</div>", unsafe_allow_html=True)
 
-        # Loop through results
         for idx, row in recs.iterrows():
             st.markdown("---")
             st.markdown(f"**{idx+1}. {row['city']}, {row['country']}**")
             st.markdown(f"**Region:** {row['region']}")
             st.markdown(f"**Description:** {row['short_description']}")
-
-            # star score
             display_stars_html(row['score'])
-
-            # Google Search link
             search_url = f"https://www.google.com/search?q={quote_plus(row['city'])}+{quote_plus(row['country'])}"
             st.markdown(f"[Search More]({search_url})")
 
 # SECTION 2: Add Travel Rating
 if section == "Add Travel Rating":
 
-    st.markdown(
-        "<div style='text-align:center; font-size:32px; font-weight:bold;'>✏️ Add Travel Rating</div>",
-        unsafe_allow_html=True
-    )
+    st.markdown("<div style='text-align:center; font-size:32px; font-weight:bold;'>✏️ Add Travel Rating</div>", unsafe_allow_html=True)
 
-    # User input fields
     city = st.text_input("City").strip()
     country = st.text_input("Country").strip()
     region = st.text_input("Region").strip()
     short_description = st.text_area("Short Description").strip()
     budget_level_input = st.selectbox("Budget Level", ["Budget", "Mid-range", "Luxury"])
 
-    # Rating each trip type
     st.markdown("<h3>⭐ Rate each Trip Type</h3>", unsafe_allow_html=True)
 
     scores = {}
-
-    # Half-star radio rating function
     def star_rating_half(key):
         if key not in st.session_state:
             st.session_state[key] = 0.0
-
         options = [i * 0.5 for i in range(11)]
         index = options.index(st.session_state[key]) if st.session_state[key] in options else 0
-
-        rating = st.radio(
-            "",
-            options=options,
-            index=index,
-            horizontal=True,
-            key=f"radio_{key}"
-        )
+        rating = st.radio("", options=options, index=index, horizontal=True, key=f"radio_{key}")
         st.session_state[key] = rating
 
-        # Generate stars (visual only)
         stars_html = ""
         for i in range(1, 6):
             if rating >= i:
@@ -213,50 +177,37 @@ if section == "Add Travel Rating":
                 stars_html += '<span style="font-size:40px; color:gold;">&#9734;</span>'
             else:
                 stars_html += '<span style="font-size:40px; color:#ccc;">&#9733;</span>'
-
         st.markdown(stars_html, unsafe_allow_html=True)
         return rating
 
-    # Collect scores for all trip types
     for t in TRIP_TYPES:
         st.markdown(f"**{t.capitalize()}**")
         scores[t] = star_rating_half(f"star_{t}")
 
     is_valid = lambda x: bool(x and x.strip())
 
-    # Save new rating to GitHub
     if st.button("Add Rating"):
-    
         if not is_valid(city):
             st.error("❌ City cannot be empty")
-
         elif not is_valid(country):
             st.error("❌ Country cannot be empty")
-
         elif not is_valid(region):
             st.error("❌ Region cannot be empty")
-
         else:
             try:
-                # Load GitHub secrets
                 token = st.secrets["GITHUB_TOKEN"]
                 repo_name = st.secrets["REPO_NAME"]
                 file_path = st.secrets["FILE_PATH"]
 
                 g = Github(token)
                 repo = g.get_repo(repo_name)
-
-                # Load Excel file from GitHub
                 contents = repo.get_contents(file_path)
                 df_ratings = pd.read_excel(io.BytesIO(contents.decoded_content))
 
-                # Check if city already exists
                 existing = df_ratings[df_ratings['city'].str.lower() == city.lower()]
                 if not existing.empty:
                     st.warning(f"⚠️ The city {city} already exists.")
-
                 else:
-                    # Create new row
                     new_row = {
                         "city": city,
                         "country": country,
@@ -264,35 +215,25 @@ if section == "Add Travel Rating":
                         "short_description": short_description,
                         "budget_level": budget_level_input
                     }
-
-                    # Add trip type ratings
                     for t in TRIP_TYPES:
                         new_row[t] = float(scores[t])
 
-                    # Append
                     df_ratings = pd.concat([df_ratings, pd.DataFrame([new_row])], ignore_index=True)
 
-                    # Save back to GitHub
                     with tempfile.NamedTemporaryFile() as tmp:
                         df_ratings.to_excel(tmp.name, index=False, engine='openpyxl')
-
                         with open(tmp.name, "rb") as f:
-                            repo.update_file(
-                                file_path,
-                                f"Add rating for {city}",
-                                f.read(),
-                                contents.sha
-                            )
+                            repo.update_file(file_path, f"Add rating for {city}", f.read(), contents.sha)
 
                     st.session_state['ratings_df'] = df_ratings
                     st.success(f"✅ Added new rating for {city}")
-
             except Exception as e:
                 st.error(f"Failed to add rating: {e}")
 
-    # Display full table of ratings
-    st.markdown("---")
-    st.markdown("<h3>🏖️ All Travel Ratings</h3>", unsafe_allow_html=True)
+# SECTION 3: All Travel Ratings
+if section == "All Travel Ratings":
+
+    st.markdown("<div style='text-align:center; font-size:32px; font-weight:bold;'>🏖️ All Travel Ratings</div>", unsafe_allow_html=True)
 
     try:
         token = st.secrets["GITHUB_TOKEN"]
@@ -301,8 +242,6 @@ if section == "Add Travel Rating":
 
         g = Github(token)
         repo = g.get_repo(repo_name)
-
-        # Load file
         contents = repo.get_contents(file_path)
         df_ratings = pd.read_excel(io.BytesIO(contents.decoded_content))
 
@@ -310,4 +249,3 @@ if section == "Add Travel Rating":
 
     except Exception as e:
         st.error(f"Failed to load ratings: {e}")
-
