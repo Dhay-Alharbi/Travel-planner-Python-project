@@ -79,6 +79,9 @@ if section == "Travel Planning Assistant":
 
     if st.button("Get Recommendations"):
         if not selected_types:
+           st.warning("⚠️ Please select budget level.")
+
+        elif not selected_types:
             st.warning("⚠️ Please select at least one trip type.")
         else:
             recs = recommend_destinations(df, budget_level, selected_types)
@@ -114,10 +117,19 @@ if section == "Add Travel Rating":
     scores = {}
     for t in TRIP_TYPES:
         scores[t] = st.slider(f"{t.capitalize()} Rating", 0.0, 5.0, 0.0, 0.5)
+        
+    is_valid = lambda x: bool(x and x.strip())
 
     if st.button("Add Rating"):
-        if not city:
-            st.error("Please provide City")
+        if not is_valid(city):
+            st.error("❌ City cannot be empty")
+    
+        elif not is_valid(country):
+            st.error("❌ Country cannot be empty")
+    
+        elif not is_valid(region):
+            st.error("❌ Region cannot be empty")
+                
         else:
             try:
                 token = st.secrets["GITHUB_TOKEN"]
@@ -173,3 +185,4 @@ if section == "Add Travel Rating":
         st.dataframe(df_ratings)
     except Exception as e:
         st.error(f"Failed to load ratings: {e}")
+
