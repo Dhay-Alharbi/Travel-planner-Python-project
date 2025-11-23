@@ -38,7 +38,7 @@ st.markdown("""
 
 # Sidebar Navigation
 st.sidebar.title("Pages:")
-section = st.sidebar.radio("Choose Section:", ["Travel Planning Assistant", "Add Travel Rating", "Explore All Destinations"])
+section = st.sidebar.radio("Choose Page:", ["Travel Planning Assistant", "Add Travel Rating", "Explore All Destinations"])
 
 # Load and prepare dataset
 df = load_cleaned_data()
@@ -226,6 +226,7 @@ if section == "Explore All Destinations":
 
     except Exception as e:
         st.error(f"Failed to load ratings: {e}")
+
 
 
 
